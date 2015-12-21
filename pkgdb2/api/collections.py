@@ -63,6 +63,9 @@ def api_collection_new():
     :arg branchname: The short name of the collection (ie: F-18).
     :arg dist_tag: The dist tag used by rpm for this collection (ie: .fc18).
     :arg kojiname: the name of the collection in koji.
+    :kwarg allow_retire: a boolean specifying if the collection should allow
+        retiring a package or not.
+        Defaults to ``False``.
 
     Sample response:
 
@@ -95,6 +98,7 @@ def api_collection_new():
         clt_branchname = form.branchname.data
         clt_disttag = form.dist_tag.data
         clt_koji_name = form.kojiname.data
+        clt_allow_retire = form.allow_retire.data or False
 
         try:
             message = pkgdblib.add_collection(
@@ -105,6 +109,7 @@ def api_collection_new():
                 clt_branchname=clt_branchname,
                 clt_disttag=clt_disttag,
                 clt_koji_name=clt_koji_name,
+                clt_allow_retire=clt_allow_retire,
                 user=flask.g.fas_user,
             )
             SESSION.commit()
@@ -247,22 +252,37 @@ def api_collection_list(pattern=None):
         {
           "collections": [
             {
-              "status": "Active",
+              "allow_retire": false,
               "branchname": "f20",
-              "version": "20",
-              "name": "Fedora"
+              "date_created": "2014-05-14 12:36:15",
+              "date_updated": "2014-05-14 12:36:15",
+              "dist_tag": ".fc20",
+              "koji_name": "f20",
+              "name": "Fedora",
+              "status": "Active",
+              "version": "20"
             },
             {
+              "allow_retire": true,
+              "branchname": "f17",
+              "date_created": "2014-05-14 12:36:15",
+              "date_updated": "2014-05-14 12:36:15",
+              "dist_tag": ".fc17",
+              "koji_name": "f17",
+              "name": "Fedora",
               "status": "EOL",
-              "branchname": "F-17",
-              "version": "17",
-              "name": "Fedora"
+              "version": "17"
             },
-                {
+            {
+              "allow_retire": true,
+              "branchname": "el6",
+              "date_created": "2014-05-14 12:36:15",
+              "date_updated": "2014-05-14 12:36:15",
+              "dist_tag": ".el6",
+              "koji_name": "dist-6E-epel",
+              "name": "Fedora EPEL",
               "status": "Active",
-              "branchname": "EL-6",
-              "version": "6",
-              "name": "Fedora EPEL"
+              "version": "6"
             }
           ]
         }
@@ -274,22 +294,37 @@ def api_collection_list(pattern=None):
         {
           "collections": [
             {
+              "allow_retire": true,
+              "branchname": "el4",
+              "date_created": "2014-05-14 12:36:15",
+              "date_updated": "2014-05-14 12:36:15",
+              "dist_tag": ".el4",
+              "koji_name": "dist-4E-epel",
+              "name": "Fedora EPEL",
               "status": "EOL",
-              "branchname": "EL-4",
-              "version": "4",
-              "name": "Fedora EPEL"
+              "version": "4"
             },
             {
+              "allow_retire": true,
+              "branchname": "el5",
+              "date_created": "2014-05-14 12:36:15",
+              "date_updated": "2014-05-14 12:36:15",
+              "dist_tag": ".el5",
+              "koji_name": "dist-5E-epel",
+              "name": "Fedora EPEL",
               "status": "Active",
-              "branchname": "EL-5",
-              "version": "5",
-              "name": "Fedora EPEL"
+              "version": "5"
             },
             {
+              "allow_retire": true,
+              "branchname": "el6",
+              "date_created": "2014-05-14 12:36:15",
+              "date_updated": "2014-05-14 12:36:15",
+              "dist_tag": ".el6",
+              "koji_name": "dist-6E-epel",
+              "name": "Fedora EPEL",
               "status": "Active",
-              "branchname": "EL-6",
-              "version": "6",
-              "name": "Fedora EPEL"
+              "version": "6"
             }
           ]
         }
@@ -310,7 +345,14 @@ def api_collection_list(pattern=None):
             collections = pkgdblib.search_collection(
                 SESSION, pattern=pattern)
     else:
-        collections = model.Collection.all(SESSION)
+        if status:
+            collections = []
+            for stat in status:
+                collections.extend(pkgdblib.search_collection(
+                    SESSION, pattern='*', status=stat)
+                )
+        else:
+            collections = model.Collection.all(SESSION)
     output = {'collections':
               [collec.to_json() for collec in collections]
               }

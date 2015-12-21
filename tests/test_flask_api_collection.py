@@ -160,18 +160,20 @@ class FlaskApiCollectionTest(Modeltests):
         self.assertEqual(sorted(output.keys()),
                          ['collections', 'output'])
         self.assertEqual(len(output['collections']), 5)
-        self.assertEqual(set(output['collections'][0].keys()),
-                         set(['branchname', 'version', 'name', 'status',
-                              'dist_tag', 'koji_name']))
+        self.assertEqual(sorted(output['collections'][0].keys()),
+                         sorted([
+            'allow_retire', 'branchname', 'date_created', 'date_updated',
+            'dist_tag', 'koji_name', 'name', 'status', 'version' ]))
 
         output = self.app.get('/api/collections/f*/')
         self.assertEqual(output.status_code, 200)
         output = json.loads(output.data)
         self.assertEqual(sorted(output.keys()),
                          ['collections', 'output'])
-        self.assertEqual(set(output['collections'][0].keys()),
-                         set(['branchname', 'version', 'name', 'status',
-                              'dist_tag', 'koji_name']))
+        self.assertEqual(sorted(output['collections'][0].keys()),
+                         sorted([
+            'allow_retire', 'branchname', 'date_created', 'date_updated',
+            'dist_tag', 'koji_name', 'name', 'status', 'version' ]))
         self.assertEqual(len(output['collections']), 2)
         self.assertEqual(output['collections'][0]['name'], 'Fedora')
         self.assertEqual(output['collections'][0]['version'], '17')
@@ -182,6 +184,44 @@ class FlaskApiCollectionTest(Modeltests):
         self.assertEqual(sorted(output.keys()),
                          ['collections', 'output'])
         self.assertEqual(output['collections'], [])
+
+        output = self.app.get('/api/collections/?clt_status=EOL')
+        self.assertEqual(output.status_code, 200)
+        output = json.loads(output.data)
+        self.assertEqual(sorted(output.keys()),
+                         ['collections', 'output'])
+        self.assertEqual(len(output['collections']), 1)
+        jdata = output['collections'][0]
+        jdata['date_created'] = 'date_created'
+        jdata['date_updated'] = 'date_updated'
+        self.assertEqual(
+            jdata,
+            {
+                'status': 'EOL',
+                'date_created': 'date_created',
+                'date_updated': 'date_updated',
+                'dist_tag': '.el4',
+                'koji_name': None,
+                'name': 'Fedora EPEL',
+                'allow_retire': False,
+                'version': '4',
+                'branchname': 'el4',
+            }
+        )
+
+        output = self.app.get('/api/collections/?clt_status=Active')
+        self.assertEqual(output.status_code, 200)
+        output = json.loads(output.data)
+        self.assertEqual(sorted(output.keys()),
+                         ['collections', 'output'])
+        self.assertEqual(len(output['collections']), 3)
+
+        output = self.app.get('/api/collections/?clt_status=Under Development')
+        self.assertEqual(output.status_code, 200)
+        output = json.loads(output.data)
+        self.assertEqual(sorted(output.keys()),
+                         ['collections', 'output'])
+        self.assertEqual(len(output['collections']), 1)
 
     @patch('pkgdb2.packager_login_required')
     def test_collection_new(self, login_func):
@@ -222,7 +262,8 @@ class FlaskApiCollectionTest(Modeltests):
             'branchname': 'EL-6',
             'clt_status': 'ACTIVE',
             'dist_tag': '.el6',
-            'kojiname': 'epel6'
+            'kojiname': 'epel6',
+            'allow_retire': True,
         }
         with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/new/', data=data)
@@ -246,7 +287,8 @@ class FlaskApiCollectionTest(Modeltests):
             'branchname': 'EL-6',
             'clt_status': 'Active',
             'dist_tag': '.el6',
-            'kojiname': 'epel6'
+            'kojiname': 'epel6',
+            'allow_retire': True,
         }
         with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/collection/new/', data=data)

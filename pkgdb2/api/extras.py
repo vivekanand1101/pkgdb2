@@ -144,28 +144,36 @@ def _bz_notify_cache(
 
 
 #@pkgdb.CACHE.cache_on_arguments(expiration_time=3600)
-def _vcs_acls_cache(out_format='text', eol=False):
+def _vcs_acls_cache(out_format='text', eol=False, collection=None,
+                    namespace=None):
     '''Return ACLs for the version control system.
 
     :kwarg out_format: Specify if the output if text or json.
     :kwarg eol: A boolean specifying whether to include information about
         End Of Life collections or not. Defaults to ``False``.
+    :kwarg collection: Restrict the VCS info to a specific collection.
+    :kwarg namespace: Restrict the VCS info to a specific namespace.
 
     '''
     packages = pkgdblib.vcs_acls(
-        session=SESSION, eol=eol, oformat=out_format,
-        skip_pp=APP.config.get('PKGS_NOT_PROVENPACKAGER', None))
+        session=SESSION,
+        eol=eol,
+        collection=collection,
+        oformat=out_format,
+        skip_pp=APP.config.get('PKGS_NOT_PROVENPACKAGER', None),
+        namespace=namespace)
     output = []
     if out_format == 'json':
-        output = {'packageAcls': packages,
-                  'title': 'Fedora Package Database -- VCS ACLs'}
+        output = packages
+        output['title'] = 'Fedora Package Database -- VCS ACLs'
     else:
         for package in sorted(packages):
             for branch in sorted(packages[package]):
                 if packages[package][branch]['group']:
                     packages[package][branch]['group'] += ','
                 output.append(
-                    'avail | %(group)s%(user)s | rpms/%(name)s/%(branch)s'
+                    'avail | %(group)s%(user)s | '
+                    '%(namespace)s/%(name)s/%(branch)s'
                     % (packages[package][branch]))
     return output
 
@@ -335,15 +343,19 @@ def api_vcs():
     :kwarg format: Specify if the output if text or json.
     :kwarg eol: A boolean specifying whether to include information about
         End Of Life collections or not. Defaults to ``False``.
+    :kwarg collection: Restrict the VCS info to a specific collection.
+    :kwarg namespace: Restrict the VCS info to a specific namespace.
 
     '''
     intro = """# VCS ACLs
-# avail|@groups,users|rpms/Package/branch
+# avail|@groups,users|namespace/Package/branch
 
 """
 
     out_format = flask.request.args.get('format', 'text')
     eol = flask.request.args.get('eol', False)
+    collection = flask.request.args.get('collection')
+    namespace = flask.request.args.get('namespace')
 
     if out_format not in ('text', 'json'):
         out_format = 'text'
@@ -351,7 +363,8 @@ def api_vcs():
     if request_wants_json():
         out_format = 'json'
 
-    acls = _vcs_acls_cache(out_format, eol=eol)
+    acls = _vcs_acls_cache(
+        out_format, eol=eol, collection=collection, namespace=namespace)
 
     if out_format == 'json':
         return flask.jsonify(acls)
@@ -721,27 +734,78 @@ def api_pkgrequest(bzid):
         jsonout.status_code = 500
         return jsonout
 
+    # Check component
     if bug.component != 'Package Review':
         httpcode = 400
         output['output'] = 'notok'
         output['error'] = 'Bugzilla ticket does not correspond '\
             'to a Review Request'
-    else:
-        tmp = bug.summary.split(':', 1)[1]
-        if not ' - ' in tmp:
-            httpcode = 400
-            output['output'] = 'notok'
-            output['error'] = 'Invalid title for this bugzilla ticket'
+
+    # Check product
+    if bug.product != 'Fedora':
+        httpcode = 400
+        output['output'] = 'notok'
+        output['error'] = 'Bugzilla ticket was not open against Fedora '\
+            'but: {0}'.format(bug.product)
+
+    # Check if the bug is assigned
+    if bug.assigned_to in ['', None, 'nobody@fedoraproject.org']:
+        httpcode = 400
+        output['output'] = 'notok'
+        output['error'] = 'Bugzilla ticket is not assigned to anyone'
+
+    # Check if the review was approved and by whom
+    error = None
+    flag_set = False
+    for flag in bug.flags:
+        if flag.get('name') == 'fedora-review':
+            if flag.get('status') == '+':
+                flag_set = True
+
+            flag_setter = flag['setter']
+
+            if flag_setter == bug.creator:
+                msg = 'Review approved by the person creating ' \
+                      'the ticket {0}'.format(flag_setter)
+                error = msg
+
+            if flag_setter != bug.assigned_to:
+                msg = 'Review not approved by the assignee of ' \
+                        'the ticket {0}'.format(flag_setter)
+                if error:
+                    error += ' -- {0}'.format(msg)
+                else:
+                    error = msg
+            break
+
+    if error is not None or flag_set is False:
+        httpcode = 400
+        output['output'] = 'notok'
+        msg = 'Fedora-review flag not approved'
+        if error and flag_set is False:
+            output['error'] = '{0} -- {1}'.format(error, msg)
+        elif error and flag_set is True:
+            output['error'] = error
         else:
-            pkg, summary = tmp.split(' - ', 1)
-            url = bug.weburl
-            if 'show_bug.cgi?id=' in url:
-                url = url.replace('show_bug.cgi?id=', '')
-            output = {
-                'name': pkg.strip(),
-                'summary': summary.strip(),
-                'review_url': url,
-            }
+            output['error'] = msg
+
+    tmp = bug.summary.split(':', 1)[1]
+    # Check the format of the title
+    if not ' - ' in tmp:
+        httpcode = 400
+        output['output'] = 'notok'
+        output['error'] = 'Invalid title for this bugzilla ticket'
+
+    if httpcode == 200:
+        pkg, summary = tmp.split(' - ', 1)
+        url = bug.weburl
+        if 'show_bug.cgi?id=' in url:
+            url = url.replace('show_bug.cgi?id=', '')
+        output = {
+            'name': pkg.strip(),
+            'summary': summary.strip(),
+            'review_url': url,
+        }
 
     jsonout = flask.jsonify(output)
     jsonout.status_code = httpcode

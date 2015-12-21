@@ -120,6 +120,10 @@ class Modeltests(unittest.TestCase):
             if os.path.exists(dbfile):
                 os.unlink(dbfile)
         self.session = model.create_tables(DB_PATH, debug=False)
+        # Create the docker namespace
+        obj = model.Namespace('docker')
+        self.session.add(obj)
+        self.session.commit()
         APP.before_request(FAS._check_session)
 
     # pylint: disable=C0103
@@ -172,6 +176,7 @@ def create_collection(session):
         owner='kevin',
         branchname='master',
         dist_tag='devel',
+        allow_retire=True,
     )
     session.add(collection)
 
@@ -202,6 +207,7 @@ def create_package(session):
     """ Create some basic package for testing. """
     package = model.Package(
         name='guake',
+        namespace='rpms',
         summary='Top down terminal for GNOME',
         description='Top down terminal...',
         status='Approved',
@@ -213,6 +219,7 @@ def create_package(session):
 
     package = model.Package(
         name='fedocal',
+        namespace='rpms',
         summary='A web-based calendar for Fedora',
         description='Web calendar ...',
         status='Approved',
@@ -224,6 +231,7 @@ def create_package(session):
 
     package = model.Package(
         name='geany',
+        namespace='rpms',
         summary='A fast and lightweight IDE using GTK2',
         description='Lightweight GNOME IDE...',
         status='Approved',
@@ -235,6 +243,7 @@ def create_package(session):
 
     package = model.Package(
         name='offlineimap',
+        namespace='docker',
         summary='Powerful IMAP/Maildir synchronization and reader support',
         description='Powerful IMAP/Maildir synchronization...',
         status='Approved',
@@ -252,10 +261,10 @@ def create_package_listing(session):
     create_collection(session)
     create_package(session)
 
-    guake_pkg = model.Package.by_name(session, 'guake')
-    fedocal_pkg = model.Package.by_name(session, 'fedocal')
-    geany_pkg = model.Package.by_name(session, 'geany')
-    offlineimap_pkg = model.Package.by_name(session, 'offlineimap')
+    guake_pkg = model.Package.by_name(session, 'rpms', 'guake')
+    fedocal_pkg = model.Package.by_name(session, 'rpms', 'fedocal')
+    geany_pkg = model.Package.by_name(session, 'rpms', 'geany')
+    offlineimap_pkg = model.Package.by_name(session, 'docker', 'offlineimap')
 
     f17_collec = model.Collection.by_name(session, 'f17')
     f18_collec = model.Collection.by_name(session, 'f18')
@@ -346,6 +355,7 @@ def create_package_critpath(session):
     """ Create package in critpath. """
     package = model.Package(
         name='kernel',
+        namespace='rpms',
         summary='The Linux kernel',
         description='The kernel',
         status='Approved',
@@ -386,9 +396,9 @@ def create_package_acl(session):
     """ Add packagers to packages. """
     create_package_listing(session)
 
-    guake_pkg = model.Package.by_name(session, 'guake')
-    geany_pkg = model.Package.by_name(session, 'geany')
-    offlineimap_pkg = model.Package.by_name(session, 'offlineimap')
+    guake_pkg = model.Package.by_name(session, 'rpms', 'guake')
+    geany_pkg = model.Package.by_name(session, 'rpms', 'geany')
+    offlineimap_pkg = model.Package.by_name(session, 'docker', 'offlineimap')
 
     el4_collec = model.Collection.by_name(session, 'el4')
     f18_collec = model.Collection.by_name(session, 'f18')
@@ -523,9 +533,9 @@ def create_package_acl2(session):
     """ Add packagers to packages. """
     create_package_listing(session)
 
-    guake_pkg = model.Package.by_name(session, 'guake')
-    fedocal_pkg = model.Package.by_name(session, 'fedocal')
-    geany_pkg = model.Package.by_name(session, 'geany')
+    guake_pkg = model.Package.by_name(session, 'rpms', 'guake')
+    fedocal_pkg = model.Package.by_name(session, 'rpms', 'fedocal')
+    geany_pkg = model.Package.by_name(session, 'rpms', 'geany')
 
     f17_collec = model.Collection.by_name(session, 'f17')
     f18_collec = model.Collection.by_name(session, 'f18')
@@ -687,7 +697,7 @@ def create_package_acl2(session):
 
 def create_admin_actions(session, n=1):
     """ Add an Admin Actions for the tests. """
-    guake_pkg = model.Package.by_name(session, 'guake')
+    guake_pkg = model.Package.by_name(session, 'rpms', 'guake')
     el6_collec = model.Collection.by_name(session, 'el6')
 
     action = model.AdminAction(
@@ -698,6 +708,20 @@ def create_admin_actions(session, n=1):
         action='request.branch',
     )
 
+    session.add(action)
+
+    action = model.AdminAction(
+        info='{"pkg_summary": "Busybox version suited for Mindi", '
+        '"pkg_status": "Approved", "pkg_collection": "master", '
+        '"pkg_name": "mindi-busybox", "pkg_review_url": '
+        '"https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=476234", '
+        '"pkg_description": "", "pkg_upstream_url": "", "pkg_poc": "pingou", '
+        '"pkg_critpath": false}',
+        collection_id=el6_collec.id,
+        user='toshio',
+        _status='Awaiting Review',
+        action='request.branch',
+    )
     session.add(action)
 
     if n > 1:
@@ -713,7 +737,6 @@ def create_admin_actions(session, n=1):
 
         session.add(action)
 
-
     session.commit()
 
 
@@ -722,10 +745,10 @@ def create_retired_pkgs(session):
     create_collection(session)
     create_package(session)
 
-    guake_pkg = model.Package.by_name(session, 'guake')
-    fedocal_pkg = model.Package.by_name(session, 'fedocal')
-    geany_pkg = model.Package.by_name(session, 'geany')
-    offlineimap_pkg = model.Package.by_name(session, 'offlineimap')
+    guake_pkg = model.Package.by_name(session, 'rpms', 'guake')
+    fedocal_pkg = model.Package.by_name(session, 'rpms', 'fedocal')
+    geany_pkg = model.Package.by_name(session, 'rpms', 'geany')
+    offlineimap_pkg = model.Package.by_name(session, 'docker', 'offlineimap')
 
     f17_collec = model.Collection.by_name(session, 'f17')
     f18_collec = model.Collection.by_name(session, 'f18')

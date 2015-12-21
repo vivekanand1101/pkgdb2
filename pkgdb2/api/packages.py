@@ -30,6 +30,7 @@ import flask
 import itertools
 
 from math import ceil
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
 
 import pkgdb2.lib as pkgdblib
@@ -71,6 +72,8 @@ def api_package_new():
     :arg poc: FAS username of the point of contact
     :arg upstream_url: the URL of the upstream project
     :arg critpath: boolean specifying if the package is in the critpath
+    :kwarg namespace: String of the namespace of the package to create
+        (defaults to ``rpms``).
 
     Sample response:
 
@@ -94,13 +97,20 @@ def api_package_new():
         SESSION, '*', 'Under Development')
     collections.extend(pkgdblib.search_collection(SESSION, '*', 'Active'))
     pkg_status = pkgdblib.get_status(SESSION, 'pkg_status')['pkg_status']
+    namespaces = pkgdblib.get_status(SESSION, 'namespaces')['namespaces']
 
     form = forms.AddPackageForm(
         csrf_enabled=False,
         collections=collections,
         pkg_status_list=pkg_status,
+        namespaces=namespaces,
     )
+
+    if str(form.namespace.data) in ['None', '']:
+        form.namespace.data = 'rpms'
+
     if form.validate_on_submit():
+        namespace = form.namespace.data
         pkg_name = form.pkgname.data
         pkg_summary = form.summary.data
         pkg_description = form.description.data
@@ -114,6 +124,7 @@ def api_package_new():
         try:
             message = pkgdblib.add_package(
                 SESSION,
+                namespace=namespace,
                 pkg_name=pkg_name,
                 pkg_summary=pkg_summary,
                 pkg_description=pkg_description,
@@ -163,7 +174,7 @@ def api_package_edit():
 
     Accepts POST queries only.
 
-    :arg pkgname: String of the package name to be created.
+    :arg pkgname: String of the package name to be edited.
     :arg summary: String of the summary description of the package.
     :arg description: String describing the package (same as in the
         spec file).
@@ -171,6 +182,8 @@ def api_package_edit():
     :arg status: status of the package can be one of: 'Approved',
         'Awaiting Review', 'Denied', 'Obsolete', 'Removed'
     :arg upstream_url: the URL of the upstream project
+    :kwarg namespace: String of the namespace of the package to be edited
+        (defaults to ``rpms``).
 
     Sample response:
 
@@ -191,17 +204,25 @@ def api_package_edit():
     output = {}
 
     pkg_status = pkgdblib.get_status(SESSION, 'pkg_status')['pkg_status']
+    namespaces = pkgdblib.get_status(SESSION, 'namespaces')['namespaces']
 
     form = forms.EditPackageForm(
         csrf_enabled=False,
         pkg_status_list=pkg_status,
+        namespaces=namespaces,
     )
+
+    if str(form.namespace.data) in ['None', '']:
+        form.namespace.data = 'rpms'
+
     if form.validate_on_submit():
+        namespace = form.namespace.data
         pkg_name = form.pkgname.data
 
         package = None
         try:
-            package = pkgdblib.search_package(SESSION, pkg_name, limit=1)[0]
+            package = pkgdblib.search_package(
+                SESSION, namespace, pkg_name, limit=1)[0]
         except (NoResultFound, IndexError):
             SESSION.rollback()
             output['output'] = 'notok'
@@ -275,6 +296,8 @@ def api_package_orphan():
     :arg pkgnames: Comma separated list of string of the packages name.
     :arg branches: Comma separated list of string of the branches name in
         which these packages will be orphaned.
+    :kwarg namespace: The namespace of the packages (can only process one
+        namespace at a time), defaults to ``rpms``.
     :kwarg former_poc: Use to restrict orphaning the branches maintained by
         a specific user while providing a broader list of branches.
 
@@ -300,6 +323,7 @@ def api_package_orphan():
 
     pkgnames = flask.request.form.getlist('pkgnames', None)
     branches = flask.request.form.getlist('branches', None)
+    namespace = flask.request.form.get('namespace', 'rpms')
     former_poc = flask.request.form.get('former_poc', None)
 
     if pkgnames and branches:
@@ -310,6 +334,7 @@ def api_package_orphan():
             try:
                 message = pkgdblib.update_pkg_poc(
                     SESSION,
+                    namespace=namespace,
                     pkg_name=pkg_name,
                     pkg_branch=pkg_branch,
                     pkg_poc='orphan',
@@ -376,6 +401,8 @@ def api_package_unorphan():
         which these packages will be unorphaned.
     :arg poc: String of the name of the user taking ownership of
         this package. If you are not an admin, this name must be None.
+    :kwarg namespace: The namespace of the packages (can only process one
+        namespace at a time), defaults to ``rpms``.
 
     Sample response:
 
@@ -398,6 +425,7 @@ def api_package_unorphan():
 
     pkgnames = flask.request.form.getlist('pkgnames', None)
     branches = flask.request.form.getlist('branches', None)
+    namespace = flask.request.form.get('namespace', 'rpms')
     poc = flask.request.form.get('poc', None)
 
     if pkgnames and branches and poc:
@@ -408,10 +436,11 @@ def api_package_unorphan():
             try:
                 message = pkgdblib.unorphan_package(
                     session=SESSION,
+                    namespace=namespace,
                     pkg_name=pkg_name,
                     pkg_branch=pkg_branch,
                     pkg_user=poc,
-                    user=flask.g.fas_user
+                    user=flask.g.fas_user,
                 )
                 messages.append(message)
                 SESSION.commit()
@@ -475,6 +504,7 @@ def api_package_retire():
     :arg pkgnames: Comma separated list of string of the packages name.
     :arg branches: Comma separated list of string of the branches name in
         which these packages will be retire.
+    :kwarg namespace: the namespace of the package to retire.
 
     Sample response:
 
@@ -498,6 +528,7 @@ def api_package_retire():
 
     pkgnames = flask.request.form.getlist('pkgnames', None)
     branches = flask.request.form.getlist('branches', None)
+    namespace = flask.request.form.get('namespace', 'rpms')
 
     if pkgnames and branches:
         try:
@@ -507,6 +538,7 @@ def api_package_retire():
                     pkgnames, branches):
                 message = pkgdblib.update_pkg_status(
                     SESSION,
+                    namespace=namespace,
                     pkg_name=pkg_name,
                     pkg_branch=pkg_branch,
                     status='Retired',
@@ -569,6 +601,8 @@ def api_package_unretire():
     :arg pkgnames: Comma separated list of the packages names.
     :arg branches: Comma separated list of string of the branches names in
         which these packages will be un-deprecated.
+    :kwarg namespace: The namespace of the package to unretire (can only
+        process one namespace at a time), defaults to ``rpms``.
 
 
     Sample response:
@@ -593,6 +627,7 @@ def api_package_unretire():
 
     pkgnames = flask.request.form.getlist('pkgnames', None)
     branches = flask.request.form.getlist('branches', None)
+    namespace = flask.request.form.get('namespace', 'rpms')
 
     if pkgnames and branches:
         try:
@@ -601,6 +636,7 @@ def api_package_unretire():
                     pkgnames, branches):
                 message = pkgdblib.update_pkg_status(
                     SESSION,
+                    namespace=namespace,
                     pkg_name=pkg_name,
                     pkg_branch=pkg_branch,
                     status='Approved',
@@ -636,7 +672,9 @@ def api_package_unretire():
 @API.route('/package')
 @API.route('/package/<pkgname>/')
 @API.route('/package/<pkgname>')
-def api_package_info(pkgname=None):
+@API.route('/package/<namespace>/<pkgname>/')
+@API.route('/package/<namespace>/<pkgname>')
+def api_package_info(namespace=None, pkgname=None):
     '''
     Package information
     -------------------
@@ -740,6 +778,7 @@ def api_package_info(pkgname=None):
     output = {}
 
     pkg_name = flask.request.args.get('pkgname', pkgname)
+    namespace = flask.request.args.get('namespace', namespace) or 'rpms'
     branches = flask.request.args.getlist('branches', None)
     eol = flask.request.args.get('eol', False)
     acls = flask.request.args.get('acls', True)
@@ -750,6 +789,7 @@ def api_package_info(pkgname=None):
         packages = pkgdblib.get_acl_package(
             SESSION,
             pkg_name=pkg_name,
+            namespace=namespace,
             pkg_clt=branches,
             eol=eol,
         )
@@ -766,7 +806,7 @@ def api_package_info(pkgname=None):
                 for pkg in packages]
     except NoResultFound:
         output['output'] = 'notok'
-        output['error'] = 'Package: %s not found' % pkg_name
+        output['error'] = 'Package: %s/%s not found' % (namespace, pkg_name)
         httpcode = 404
 
     jsonout = flask.jsonify(output)
@@ -778,7 +818,9 @@ def api_package_info(pkgname=None):
 @API.route('/packages')
 @API.route('/packages/<pattern>/')
 @API.route('/packages/<pattern>')
-def api_package_list(pattern=None):
+@API.route('/package/<namespace>/<pattern>/')
+@API.route('/package/<namespace>/<pattern>')
+def api_package_list(namespace=None, pattern=None):
     '''
     List packages
     -------------
@@ -892,6 +934,7 @@ def api_package_list(pattern=None):
     output = {}
 
     pattern = flask.request.args.get('pattern', pattern) or '*'
+    namespace = flask.request.args.get('namespace', namespace) or 'rpms'
     branches = flask.request.args.getlist('branches', None)
     poc = flask.request.args.get('poc', None)
     orphaned = flask.request.args.get('orphaned', None)
@@ -905,24 +948,32 @@ def api_package_list(pattern=None):
         critpath = False
     elif critpath:
         critpath = True
-    acls = bool(flask.request.args.get('acls', False))
+    acls = flask.request.args.get('acls', False)
+    if str(acls).lower() in ['0', 'false']:
+        acls = False
+    else:
+        acls = True
+
     statuses = flask.request.args.getlist('status', None)
     eol = flask.request.args.get('eol', False)
     page = flask.request.args.get('page', 1)
     limit = get_limit()
     count = flask.request.args.get('count', False)
     try:
+        tmp_branches = branches
         if not branches:
-            branches = [None]
+            tmp_branches = [None]
+        tmp_statuses = statuses
         if not statuses:
-            statuses = [None]
+            tmp_statuses = [None]
 
         if count:
             packages = 0
             for status, branch in itertools.product(
-                    statuses, branches):
+                    tmp_statuses, tmp_branches):
                 packages += pkgdblib.search_package(
                     SESSION,
+                    namespace=namespace,
                     pkg_name=pattern,
                     pkg_branch=branch,
                     pkg_poc=poc,
@@ -943,10 +994,11 @@ def api_package_list(pattern=None):
             packages = set()
             packages_count = 0
             for status, branch in itertools.product(
-                    statuses, branches):
+                    tmp_statuses, tmp_branches):
                 packages.update(
                     pkgdblib.search_package(
                         SESSION,
+                        namespace=namespace,
                         pkg_name=pattern,
                         pkg_branch=branch,
                         pkg_poc=poc,
@@ -961,6 +1013,7 @@ def api_package_list(pattern=None):
                 )
                 packages_count += pkgdblib.search_package(
                     SESSION,
+                    namespace=namespace,
                     pkg_name=pattern,
                     pkg_branch=branch,
                     pkg_poc=poc,
@@ -1019,6 +1072,7 @@ def api_package_critpath():
     :arg pkgnames: A list of string of the packages name.
     :arg branches: A list of string of the branches name in which the
         critpath status will be updated.
+    :kwarg namespace: The namespace of the packages (defaults to ``rpms``).
     :kwarg critpath: A boolean of the critpath status. Defaults to False.
 
 
@@ -1044,6 +1098,7 @@ def api_package_critpath():
     output = {}
 
     pkgnames = flask.request.form.getlist('pkgnames', None)
+    namespace = flask.request.form.get('namespace', 'rpms')
     branches = flask.request.form.getlist('branches', None)
     critpath = flask.request.form.get('critpath', False)
     if str(critpath).lower() in ['1', 'true']:
@@ -1051,13 +1106,14 @@ def api_package_critpath():
     elif str(critpath).lower() in ['0', 'false']:
         critpath = False
 
-    if pkgnames and branches:
+    if pkgnames and branches and namespace:
         try:
             messages = []
             for pkg_name, pkg_branch in itertools.product(
                     pkgnames, branches):
                 message = pkgdblib.set_critpath_packages(
                     SESSION,
+                    namespace=namespace,
                     pkg_name=pkg_name,
                     pkg_branch=pkg_branch,
                     critpath=critpath,
@@ -1086,6 +1142,8 @@ def api_package_critpath():
             detail.append('pkgnames: This field is required.')
         if not branches:
             detail.append('branches: This field is required.')
+        if not namespace:
+            detail.append('namespace: This field is required.')
         if detail:
             output['error_detail'] = detail
         httpcode = 500
@@ -1096,8 +1154,9 @@ def api_package_critpath():
 
 
 @API.route('/package/<package>/monitor/<status>', methods=['POST'])
+@API.route('/package/<namespace>/<package>/monitor/<status>', methods=['POST'])
 @packager_login_required
-def api_monitor_package(package, status):
+def api_monitor_package(package, status, namespace='rpms'):
     '''
     Monitoring status
     -----------------
@@ -1114,6 +1173,8 @@ def api_monitor_package(package, status):
         ``1`` or ``true`` for setting full monitoring, ``nobuild`` to set
         the monitoring but block scratch builds or ``0`` or ``false`` to
         stop the monitoring entirely.
+    :kwarg namespace: The namespace of the package to update
+        (default to ``rpms``).
 
 
     Sample response:
@@ -1143,7 +1204,7 @@ def api_monitor_package(package, status):
 
     try:
         msg = pkgdblib.set_monitor_package(
-            SESSION, package, status, flask.g.fas_user)
+            SESSION, namespace, package, status, flask.g.fas_user)
         SESSION.commit()
         output['output'] = 'ok'
         output['messages'] = msg
@@ -1159,8 +1220,9 @@ def api_monitor_package(package, status):
 
 
 @API.route('/package/<package>/koschei/<status>', methods=['POST'])
+@API.route('/package/<namespace>/<package>/koschei/<status>', methods=['POST'])
 @packager_login_required
-def api_koschei_package(package, status):
+def api_koschei_package(package, status, namespace='rpms'):
     '''
     Koschei monitoring status
     -------------------------
@@ -1168,7 +1230,7 @@ def api_koschei_package(package, status):
 
     ::
 
-        /api/package/<package>/koschei/<status>
+        /api/package/<namespace>/<package>/koschei/<status>
 
     Accepts POST queries only.
 
@@ -1176,6 +1238,8 @@ def api_koschei_package(package, status):
     :arg status: The status to set to the koschei monitoring flag, can be
         either ``1`` or ``true`` or ``0`` or ``false`` to stop the
         monitoring.
+    :kwarg namespace: The namespace of the package to update
+        (default to ``rpms``).
 
 
     Sample response:
@@ -1203,7 +1267,7 @@ def api_koschei_package(package, status):
 
     try:
         msg = pkgdblib.set_koschei_monitor_package(
-            SESSION, package, status, flask.g.fas_user)
+            SESSION, namespace, package, status, flask.g.fas_user)
         SESSION.commit()
         output['output'] = 'ok'
         output['messages'] = msg
@@ -1212,6 +1276,280 @@ def api_koschei_package(package, status):
         output['output'] = 'notok'
         output['error'] = str(err)
         httpcode = 500
+
+    jsonout = flask.jsonify(output)
+    jsonout.status_code = httpcode
+    return jsonout
+
+
+@API.route('/request/package', methods=['POST'])
+def api_package_request():
+    '''
+    New package request
+    -------------------
+    Request for an admin to include a new package in pkgdb.
+
+    ::
+
+        /api/request/package
+
+    Accepts POST queries only.
+
+    :arg pkgname: The name of the package to create.
+    :arg summary: The summary of the package.
+    :arg description: The description of the package.
+    :arg upstream_url: The URL of the upstream website of the package.
+    :arg review_url: The URL where the package review was done.
+    :arg branches: The list of branches desired for this package.
+        Note: if the ``master`` isn't requested, it will be added
+        automatically.
+    :kwarg namespace: The namespace of the package to create
+        (defaults to ``rpms``).
+
+
+    Sample response:
+
+    ::
+
+        {
+          "output": "ok",
+          "messages": [
+            'user: pingou request package: guake on branch master',
+            'user: pingou request package: guake on branch f18',
+          ]
+        }
+
+        {
+          "output": "notok",
+          'error': 'User "pingou" is not in the packager group',
+        }
+
+        {
+          "error": "Invalid input submitted",
+          "error_detail": [
+            "branches: 'foobar' is not a valid choice for this field",
+            "review_url: This field is required."
+          ],
+          "output": "notok"
+        }
+
+    '''
+    httpcode = 200
+    output = {}
+    collections = pkgdblib.search_collection(
+        SESSION, '*', 'Under Development')
+    collections.reverse()
+    active_collections = pkgdblib.search_collection(SESSION, '*', 'Active')
+    active_collections.reverse()
+    # We want all the branch `Under Development` as well as all the `Active`
+    # branch but we can only have at max 2 Fedora branch active at the same
+    # time. In other words, when Fedora n+1 is released one can no longer
+    # request a package to be added to Fedora n-1
+    cnt = 0
+    for collection in active_collections:
+        if collection.name.lower() == 'fedora':
+            if cnt >= 2:
+                continue
+            cnt += 1
+        collections.append(collection)
+
+    namespaces = pkgdblib.get_status(SESSION, 'namespaces')['namespaces']
+    form = forms.RequestPackageForm(
+        csrf_enabled=False,
+        collections=collections,
+        namespaces=namespaces,
+    )
+
+    if str(form.namespace.data) in ['None', '']:
+        form.namespace.data = 'rpms'
+
+    if form.validate_on_submit():
+        pkg_name = form.pkgname.data
+        pkg_summary = form.summary.data
+        pkg_description = form.description.data
+        pkg_review_url = form.review_url.data
+        pkg_status = 'Approved'
+        pkg_critpath = False
+        pkg_collection = form.branches.data
+        if not 'master' in pkg_collection:
+            pkg_collection.append('master')
+        pkg_poc = flask.g.fas_user.username
+        pkg_upstream_url = form.upstream_url.data
+        pkg_namespace = form.namespace.data
+
+        bz = APP.config.get('PKGDB2_BUGZILLA_URL')
+        if bz not in pkg_review_url:
+            try:
+                int(pkg_review_url)
+                pkg_review_url = bz + '/' + pkg_review_url
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            messages = []
+            for clt in pkg_collection:
+                message = pkgdblib.add_new_package_request(
+                    SESSION,
+                    pkg_name=pkg_name,
+                    pkg_summary=pkg_summary,
+                    pkg_description=pkg_description,
+                    pkg_review_url=pkg_review_url,
+                    pkg_status=pkg_status,
+                    pkg_critpath=pkg_critpath,
+                    pkg_collection=clt,
+                    pkg_poc=pkg_poc,
+                    pkg_upstream_url=pkg_upstream_url,
+                    pkg_namespace=pkg_namespace,
+                    user=flask.g.fas_user,
+                )
+                if message:
+                    messages.append(message)
+            SESSION.commit()
+            output['output'] = 'ok'
+            output['messages'] = messages
+        except pkgdblib.PkgdbException, err:
+            SESSION.rollback()
+            output['output'] = 'notok'
+            output['error'] = str(err)
+            httpcode = 400
+    else:
+        output['output'] = 'notok'
+        output['error'] = 'Invalid input submitted'
+        if form.errors:
+            detail = []
+            for error in form.errors:
+                detail.append('%s: %s' % (error,
+                              '; '.join(form.errors[error])))
+            output['error_detail'] = detail
+        httpcode = 400
+
+    jsonout = flask.jsonify(output)
+    jsonout.status_code = httpcode
+    return jsonout
+
+
+@API.route('/request/branch/<package>', methods=['POST'])
+@API.route('/request/branch/<namespace>/<package>', methods=['POST'])
+def api_branch_request(package, namespace='rpms'):
+    '''
+    New branch request
+    ------------------
+    Request a new branch for package in pkgdb.
+
+    ::
+
+        /api/request/branch/<namespace>/<package>
+
+    Accepts POST queries only.
+
+    :arg package: The name of the package
+    :arg branches: The list of branches desired for this package.
+    :arg namespace: The namespace of the package
+        (default to ``rpms``).
+
+
+    Sample response:
+
+    ::
+
+        {
+          'messages': [
+            'Branch f17 created for user pingou',
+          ],
+          'output': 'ok'
+        }
+
+        {
+          "messages": [
+            "Branch el6 requested for user pingou"
+          ],
+          "output": "ok"
+        }
+
+        {
+          "output": "notok",
+          'error': 'User "pingou" is not in the packager group',
+        }
+
+        {
+          "error": "Invalid input submitted",
+          "error_detail": [
+            "branches: 'foobar' is not a valid choice for this field",
+          ],
+          "output": "notok"
+        }
+
+    '''
+    httpcode = 200
+    output = {}
+    try:
+        package_acl = pkgdblib.get_acl_package(SESSION, namespace, package)
+        package = pkgdblib.search_package(
+            SESSION, namespace, package, limit=1)[0]
+    except (NoResultFound, IndexError):
+        SESSION.rollback()
+        output['output'] = 'notok'
+        output['error'] = 'No package found: %s/%s' % (namespace, package)
+        httpcode = 404
+    else:
+
+        branches = [
+            pkg.collection.branchname
+            for pkg in package_acl
+            if pkg.collection.status != 'EOL'
+        ]
+
+        collections = pkgdblib.search_collection(
+            SESSION, '*', 'Under Development')
+        collections.extend(pkgdblib.search_collection(
+            SESSION, '*', 'Active'))
+        branches_possible = [
+            collec.branchname
+            for collec in collections
+            if collec.branchname not in branches]
+
+        form = forms.BranchForm(
+            collections=branches_possible,
+            csrf_enabled=False,
+        )
+
+        if form.validate_on_submit():
+            try:
+                messages = []
+                for branch in form.branches.data:
+                    msg = pkgdblib.add_new_branch_request(
+                        session=SESSION,
+                        namespace=namespace,
+                        pkg_name=package.name,
+                        clt_to=branch,
+                        user=flask.g.fas_user)
+                    if msg:
+                        messages.append(msg)
+                SESSION.commit()
+                output['output'] = 'ok'
+                output['messages'] = messages
+            except pkgdblib.PkgdbException, err:  # pragma: no cover
+                SESSION.rollback()
+                output['output'] = 'notok'
+                output['error'] = str(err)
+                httpcode = 400
+            except SQLAlchemyError, err:  # pragma: no cover
+                SESSION.rollback()
+                APP.logger.exception(err)
+                output['output'] = 'notok'
+                output['error'] = 'Could not save the request to the '\
+                    'database for branch: %s' % branch
+                httpcode = 400
+        else:
+            output['output'] = 'notok'
+            output['error'] = 'Invalid input submitted'
+            if form.errors:
+                detail = []
+                for error in form.errors:
+                    detail.append('%s: %s' % (error,
+                                  '; '.join(form.errors[error])))
+                output['error_detail'] = detail
+            httpcode = 400
 
     jsonout = flask.jsonify(output)
     jsonout.status_code = httpcode

@@ -161,8 +161,8 @@ class FlaskUiAdminTest(Modeltests):
             self.assertTrue(
                 'Restrict to package: <input type="text" name="package" />'
                 in output.data)
-            # 2 actions = 2 pages
-            self.assertTrue('<td>1 / 2</td>' in output.data)
+            # 3 actions = 3 pages
+            self.assertTrue('<td>1 / 3</td>' in output.data)
 
             # Reset the pagination
             pkgdb2.APP.config['ITEMS_PER_PAGE'] = 50
@@ -217,7 +217,7 @@ class FlaskUiAdminTest(Modeltests):
                 1
             )
             self.assertTrue(
-                '<td class="col_odd" >\n      Awaiting Review\n    </td>'
+                '<td class="col_odd" >\n        Awaiting Review\n      </td>'
                 in output.data)
 
             # One action Awaiting Review
@@ -231,7 +231,7 @@ class FlaskUiAdminTest(Modeltests):
                 1
             )
             self.assertTrue(
-                '<td class="col_odd" >\n      Awaiting Review\n    </td>'
+                '<td class="col_odd" >\n        Awaiting Review\n      </td>'
                 in output.data)
 
             # Update

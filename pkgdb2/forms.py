@@ -32,9 +32,11 @@ WTF Forms of the pkgdb Flask application.
 ## Couple of our forms do not even have __init__
 # pylint: disable=W0232
 
-
-from flask.ext import wtf
+import re
 import wtforms
+from flask.ext import wtf
+
+PKG_NAME_RE = '[a-zA-Z0-9\-\+]+'
 
 
 ## Yes we do nothing with the form argument but they are required...
@@ -76,6 +78,10 @@ class AddCollectionForm(wtf.Form):
         'Dist tag',
         [wtforms.validators.Required()]
     )
+    allow_retire = wtforms.BooleanField(
+        'Allows retiring a package',
+        [wtforms.validators.optional()]
+    )
 
     def __init__(self, *args, **kwargs):
         """ Calls the default constructor with the normal argument but
@@ -95,6 +101,7 @@ class AddCollectionForm(wtf.Form):
             self.branchname.data = collection.branchname
             self.dist_tag.data = collection.dist_tag
             self.kojiname.data = collection.koji_name
+            self.allow_retire.data = collection.allow_retire
 
             # Set the drop down menu to the current value
             opt = (collection.status, collection.status)
@@ -133,7 +140,10 @@ class RequestPackageForm(wtf.Form):
     """ Form to request a new package. """
     pkgname = wtforms.TextField(
         'Package name',
-        [wtforms.validators.Required()]
+        [
+            wtforms.validators.Required(),
+            wtforms.validators.Regexp(PKG_NAME_RE, flags=re.IGNORECASE),
+        ]
     )
     summary = wtforms.TextField(
         'Summary',
@@ -155,6 +165,11 @@ class RequestPackageForm(wtf.Form):
         'Upstream URL',
         [wtforms.validators.optional()]
     )
+    namespace = wtforms.SelectField(
+        'Namespace',
+        [wtforms.validators.Required()],
+        choices=[(item, item) for item in []]
+    )
 
     def __init__(self, *args, **kwargs):
         """ Calls the default constructor with the normal argument but
@@ -166,6 +181,12 @@ class RequestPackageForm(wtf.Form):
             self.branches.choices = [
                 (collec.branchname, collec.branchname)
                 for collec in kwargs['collections']
+            ]
+
+        if 'namespaces' in kwargs:
+            self.namespace.choices = [
+                (ns, ns)
+                for ns in kwargs['namespaces']
             ]
 
 
@@ -201,9 +222,17 @@ class AddPackageForm(RequestPackageForm):
 
 class EditPackageForm(wtf.Form):
     """ Form to edit packages. """
+    namespace = wtforms.SelectField(
+        'Namespaces',
+        [wtforms.validators.Required()],
+        choices=[('', '')]
+    )
     pkgname = wtforms.TextField(
         'Package name',
-        [wtforms.validators.Required()]
+        [
+            wtforms.validators.Required(),
+            wtforms.validators.Regexp(PKG_NAME_RE, flags=re.IGNORECASE),
+        ]
     )
     summary = wtforms.TextField(
         'Summary',
@@ -237,13 +266,26 @@ class EditPackageForm(wtf.Form):
                 (status, status)
                 for status in kwargs['pkg_status_list']
             ]
+        if 'namespaces' in kwargs:
+            self.namespace.choices = [
+                (ns, ns)
+                for ns in kwargs['namespaces']
+            ]
 
 
 class SetAclPackageForm(wtf.Form):
     """ Form to set ACLs to someone on a package. """
+    namespace = wtforms.SelectField(
+        'Namespaces',
+        [wtforms.validators.Required()],
+        choices=[('', '')]
+    )
     pkgname = wtforms.TextField(
         'Package name',
-        [wtforms.validators.Required()]
+        [
+            wtforms.validators.Required(),
+            wtforms.validators.Regexp(PKG_NAME_RE, flags=re.IGNORECASE),
+        ]
     )
     branches = wtforms.SelectMultipleField(
         'Branch',
@@ -290,6 +332,11 @@ class SetAclPackageForm(wtf.Form):
             self.acl.choices = [
                 (acl, acl)
                 for acl in kwargs['pkg_acl']
+            ]
+        if 'namespaces' in kwargs:
+            self.namespace.choices = [
+                (ns, ns)
+                for ns in kwargs['namespaces']
             ]
 
 
@@ -393,3 +440,19 @@ class EditActionStatusForm(wtf.Form):
                 (status, status)
                 for status in kwargs['status']
             ]
+
+
+class UnretireForm(BranchForm):
+    """ Form to ask for a package to be un-retired. """
+    review_url = wtforms.TextField(
+        'review_url',
+        [wtforms.validators.optional()],
+    )
+
+
+class NamespaceForm(wtf.Form):
+    """ Form to add/drop namespace from the DB. """
+    namespace = wtforms.TextField(
+        'Namespace <span class="error">*</span>',
+        [wtforms.validators.Required()]
+    )

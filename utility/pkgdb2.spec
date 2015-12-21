@@ -2,7 +2,7 @@
 %distutils.sysconfig import get_python_lib; print (get_python_lib())")}
 
 Name:           pkgdb2
-Version:        1.31
+Version:        2.0.2
 Release:        1%{?dist}
 Summary:        The Fedora package database
 
@@ -118,6 +118,83 @@ install -m 644 utility/alembic.ini $RPM_BUILD_ROOT/%{_sysconfdir}/pkgdb2/alembic
 
 
 %changelog
+* Mon Dec 21 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 2.0.2-1
+- Update to 2.0.2
+- Fix the opensearch integration
+
+* Fri Dec 18 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 2.0.1-1
+- Update to 2.0.1
+- Fix typo in a variable name that was making requesting a new package fail
+  (Patrick Uiterwijk)
+- Fix giving ACLs to someone
+- Fix editing a new package request (where the request is not associated to any
+  package)
+
+* Thu Dec 17 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 2.0-1
+- Update to 2.0
+- Add the concept of namespace to all the packages present in pkgdb2
+
+* Fri Dec 11 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.33.3-2
+- Bump release
+
+* Fri Dec 11 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.33.3-1
+- Update to 1.33.3
+- Fix processing new package requests
+
+* Thu Dec 10 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.33.2-1
+- Update to 1.33.2
+- Fix the bugzilla integration when requesting a new package in pkgdb
+
+* Mon Dec 07 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.33.1-1
+- Update to 1.33.1
+- Fix the API listing the packages to make it return the ACLs if asked to
+
+* Fri Dec 04 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.33.0-1
+- Update to 1.33.0
+- Strip the input (if there is one) when a new package is requested (avoids
+  trailing spaces typo)
+- Add a link to the package once the action has been approved (trishnaguha &
+  pingou)
+- Improve the checks to the package review on bugzilla before letting it through
+- Limit the size of the content section (avoids the overlap with the options
+  box)
+- When un-retiring a package, request the review_url
+- Mention postgresql-devel dependency (Till Maas and Ralph Bean)
+- Let the user update request to unretire to `Awaiting Review`
+- Restrict the branches proposed to un-retire to the last two Fedora releases
+- Perform more checks around the fedora-review flag when syncing info from
+  bugzilla
+- Making sure admins are made aware that changing a status does not process the
+  request
+- When approving a new package, process the new Fedora branch requests as well
+
+* Thu Nov 05 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.32.2-1
+- Update to 1.32.2
+- Fix showing the link to the detail view of the action on the page listing them
+
+* Thu Nov 05 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.32.1-1
+- Update to 1.32.1
+- Fix filtering requests on the `My requests` page using the web form
+
+* Tue Nov 03 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.32-1
+- Update to 1.32
+- Change the cursor when hovering over the monitoring buttons logged out
+  (Devyani Kota)
+- Make the list of admin requests sortable (Vivek Anand)
+- Start a FAQ in the doc for frequently asked question (Devyani Kota)
+- Fix pagination in the `My requests` page and the unit-tests
+- Add a new API endpoint to request package to be added to pkgdb
+- Add a new API endpoint to request a new branch to a package
+- Adjust the icons used to show the collection's status
+- Only automatically update 'Awaiting Review' ACL requests
+- Add an allow_retire flag to collections so that the collection status can
+  remain reflecting the actual status of the collection
+- Allow restricting the VCS output information to a specific branch in the API
+- Fix showing the 'Ask un-retirement' button on the package page
+- Fix filtering the collections when listing them in the API
+- Register and show the date of the last update of a collection
+- Ignore the retired branch when requesting ACLs in batch (via the UI)
+
 * Tue Oct 13 2015 Pierre-Yves Chibon <pingou@pingoured.fr> - 1.31-1
 - Update to 1.31
 - Prevent the PoC of a package to be removed of his/her watch* ACLs

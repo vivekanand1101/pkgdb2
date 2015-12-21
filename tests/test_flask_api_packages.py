@@ -54,6 +54,7 @@ class FlaskApiPackagesTest(Modeltests):
         pkgdb2.APP.config['TESTING'] = True
         pkgdb2.SESSION = self.session
         pkgdb2.api.packages.SESSION = self.session
+        pkgdb2.ui.SESSION = self.session
         self.app = pkgdb2.APP.test_client()
 
     @patch('pkgdb2.lib.utils')
@@ -107,6 +108,7 @@ class FlaskApiPackagesTest(Modeltests):
             'branches': '',
             'poc': '',
             'upstream_url': '',
+            'namespace': 'foo',
         }
         with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/package/new/', data=data)
@@ -118,6 +120,7 @@ class FlaskApiPackagesTest(Modeltests):
                     "error": "Invalid input submitted",
                     "error_detail": [
                         "status: This field is required.",
+                        "namespace: Not a valid choice",
                         "branches: '' is not a valid choice for this field",
                         "poc: This field is required.",
                     ],
@@ -135,6 +138,7 @@ class FlaskApiPackagesTest(Modeltests):
             'poc': 'mclasen',
             'upstream_url': 'http://www.gnome.org/',
             'critpath': False,
+            'namespace': 'rpms',
         }
         with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/package/new/', data=data)
@@ -165,6 +169,7 @@ class FlaskApiPackagesTest(Modeltests):
             'poc': 'mclasen',
             'upstream_url': 'http://www.gnome.org/',
             'critpath': False,
+            'namespace': 'rpms',
         }
         with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/package/new/', data=data)
@@ -191,6 +196,7 @@ class FlaskApiPackagesTest(Modeltests):
             'poc': 'mclasen',
             'upstream_url': 'http://www.gnome.org/',
             'critpath': False,
+            'namespace': 'rpms',
         }
         with user_set(pkgdb2.APP, user):
             output = self.app.post('/api/package/new/', data=data)
@@ -238,6 +244,7 @@ class FlaskApiPackagesTest(Modeltests):
             )
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'test',
@@ -258,6 +265,7 @@ class FlaskApiPackagesTest(Modeltests):
         mock_func.log.return_value = ''
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['el4', 'f18'],
             'poc': 'test',
@@ -269,13 +277,14 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertEqual(
                 data,
                 {
-                    'error': 'The package guake could not be found in the '
-                    'collection el4.',
+                    'error': 'The package rpms/guake could not be found in '
+                    'the collection el4.',
                     'messages': [''],
                     'output': 'ok'
                 }
             )
-            pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
+            pkg_acl = pkgdblib.get_acl_package(
+                self.session, 'rpms', 'guake')
             self.assertEqual(pkg_acl[0].collection.branchname, 'f18')
             self.assertEqual(pkg_acl[0].package.name, 'guake')
             self.assertEqual(pkg_acl[0].point_of_contact, 'orphan')
@@ -286,6 +295,7 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertEqual(pkg_acl[1].point_of_contact, 'pingou')
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'test',
@@ -301,7 +311,8 @@ class FlaskApiPackagesTest(Modeltests):
                     "output": "ok"
                 }
             )
-            pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
+            pkg_acl = pkgdblib.get_acl_package(
+                self.session, 'rpms', 'guake')
             self.assertEqual(pkg_acl[0].collection.branchname, 'f18')
             self.assertEqual(pkg_acl[0].package.name, 'guake')
             self.assertEqual(pkg_acl[0].point_of_contact, 'orphan')
@@ -347,6 +358,7 @@ class FlaskApiPackagesTest(Modeltests):
         mock_func.get_packagers.return_value = ['test']
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'test',
@@ -368,6 +380,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # Unorphan a not-orphaned package
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'test',
@@ -380,8 +393,8 @@ class FlaskApiPackagesTest(Modeltests):
                 data,
                 {
                     "error": [
-                        'Package "guake" is not orphaned on f18',
-                        'Package "guake" is not orphaned on master',
+                        'Package "rpms/guake" is not orphaned on master',
+                        'Package "rpms/guake" is not orphaned on f18',
                     ],
                     "output": "notok"
                 }
@@ -389,6 +402,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # Orphan the package
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'test',
@@ -404,7 +418,8 @@ class FlaskApiPackagesTest(Modeltests):
                     "output": "ok"
                 }
             )
-            pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
+            pkg_acl = pkgdblib.get_acl_package(
+                self.session, 'rpms', 'guake')
             self.assertEqual(pkg_acl[0].collection.branchname, 'f18')
             self.assertEqual(pkg_acl[0].package.name, 'guake')
             self.assertEqual(pkg_acl[0].point_of_contact, 'orphan')
@@ -417,6 +432,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # Unorphan the package for someone else
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'test',
@@ -438,6 +454,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # Unorphan the package on a branch where it is not
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['el4', 'f18'],
             'poc': 'pingou',
@@ -450,15 +467,16 @@ class FlaskApiPackagesTest(Modeltests):
                 data,
                 {
                     'error':
-                    'Package "guake" is not in the collection el4',
+                    'Package "rpms/guake" is not in the collection el4',
                     "messages": [
-                        "Package guake has been unorphaned on f18 by pingou"
+                        "Package rpms/guake has been unorphaned on f18 by pingou"
                     ],
                     'output': 'ok'
                 }
             )
 
-            pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
+            pkg_acl = pkgdblib.get_acl_package(
+                self.session, 'rpms', 'guake')
             self.assertEqual(pkg_acl[0].collection.branchname, 'f18')
             self.assertEqual(pkg_acl[0].package.name, 'guake')
             self.assertEqual(pkg_acl[0].point_of_contact, 'pingou')
@@ -471,6 +489,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # Unorphan the package
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['f18', 'master'],
             'poc': 'pingou',
@@ -482,15 +501,16 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertEqual(
                 data,
                 {
-                    "error": 'Package "guake" is not orphaned on f18',
+                    "error": 'Package "rpms/guake" is not orphaned on f18',
                     "messages": [
-                        "Package guake has been unorphaned on master by pingou"
+                        "Package rpms/guake has been unorphaned on master by pingou"
                     ],
                     "output": "ok"
                 }
             )
 
-            pkg_acl = pkgdblib.get_acl_package(self.session, 'guake')
+            pkg_acl = pkgdblib.get_acl_package(
+                self.session, 'rpms', 'guake')
             self.assertEqual(pkg_acl[0].collection.branchname, 'f18')
             self.assertEqual(pkg_acl[0].package.name, 'guake')
             self.assertEqual(pkg_acl[0].point_of_contact, 'pingou')
@@ -566,7 +586,7 @@ class FlaskApiPackagesTest(Modeltests):
                 data,
                 {
                     "error": "You are not allowed to retire the package: "
-                    "guake on branch f18.",
+                    "rpms/guake on branch f18.",
                     "output": "notok"
                 }
             )
@@ -603,7 +623,7 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertEqual(
                 data,
                 {
-                    "error": "No package guake found in collection el6",
+                    "error": "No package rpms/guake found in collection el6",
                     "output": "notok"
                 }
             )
@@ -669,7 +689,6 @@ class FlaskApiPackagesTest(Modeltests):
                 continue
             self.assertEqual(acl['status'], 'Obsolete')
 
-
     @patch('pkgdb2.lib.utils')
     @patch('pkgdb2.packager_login_required')
     def test_api_package_retire2(self, login_func, mock_func):
@@ -690,12 +709,13 @@ class FlaskApiPackagesTest(Modeltests):
             owner='kevin',
             branchname='epel7',
             dist_tag='.el7',
+            allow_retire=True,
         )
         self.session.add(collection)
         self.session.commit()
 
         # Add guake to epel7
-        guake_pkg = model.Package.by_name(self.session, 'guake')
+        guake_pkg = model.Package.by_name(self.session, 'rpms', 'guake')
         el7_collec = model.Collection.by_name(self.session, 'epel7')
 
         pkgltg = model.PackageListing(
@@ -794,12 +814,13 @@ class FlaskApiPackagesTest(Modeltests):
             owner='kevin',
             branchname='epel7',
             dist_tag='.el7',
+            allow_retire=True,
         )
         self.session.add(collection)
         self.session.commit()
 
         # Add guake to epel7
-        guake_pkg = model.Package.by_name(self.session, 'guake')
+        guake_pkg = model.Package.by_name(self.session, 'rpms', 'guake')
         el7_collec = model.Collection.by_name(self.session, 'epel7')
 
         pkgltg = model.PackageListing(
@@ -849,12 +870,13 @@ class FlaskApiPackagesTest(Modeltests):
             owner='kevin',
             branchname='epel7',
             dist_tag='.el7',
+            allow_retire=True,
         )
         self.session.add(collection)
         self.session.commit()
 
         # Add guake to epel7
-        guake_pkg = model.Package.by_name(self.session, 'guake')
+        guake_pkg = model.Package.by_name(self.session, 'rpms', 'guake')
         el7_collec = model.Collection.by_name(self.session, 'epel7')
 
         pkgltg = model.PackageListing(
@@ -872,6 +894,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         user = FakeFasUser()
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['epel7'],
         }
@@ -899,6 +922,7 @@ class FlaskApiPackagesTest(Modeltests):
         self.session.commit()
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['epel7'],
         }
@@ -913,6 +937,77 @@ class FlaskApiPackagesTest(Modeltests):
                 {
                     "messages": [""],
                     "output": "ok"
+                }
+            )
+
+    @patch('pkgdb2.lib.utils')
+    @patch('pkgdb2.packager_login_required')
+    def test_api_package_retire5(self, login_func, mock_func):
+        """ Test a fifth time the api_package_retire function.  """
+        login_func.return_value = None
+        create_package_acl(self.session)
+        mock_func.log.return_value = ''
+
+        # Redirect as you are not a packager
+        user = FakeFasUser()
+        user.groups = []
+
+        # Add the EPEL 7 collection where we block retiring packages
+        collection = model.Collection(
+            name='Fedora EPEL',
+            version='7',
+            status='Active',
+            owner='kevin',
+            branchname='epel7',
+            dist_tag='.el7',
+            allow_retire=False,
+        )
+        self.session.add(collection)
+        self.session.commit()
+
+        # Add guake to epel7
+        guake_pkg = model.Package.by_name(self.session, 'rpms', 'guake')
+        el7_collec = model.Collection.by_name(self.session, 'epel7')
+
+        pkgltg = model.PackageListing(
+            point_of_contact='kevin',
+            status='Approved',
+            package_id=guake_pkg.id,
+            collection_id=el7_collec.id,
+        )
+        self.session.add(pkgltg)
+        self.session.commit()
+        # No idea but access pkgltg.id later on fails with:
+        # DetachedInstanceError: Instance <PackageListing at ...> is not
+        # bound to a Session; attribute refresh operation cannot proceed
+        pkgltg_id = pkgltg.id
+
+        # Give approveacls to pingou on guake branch epel7:
+        packager = model.PackageListingAcl(
+            fas_name='pingou',
+            packagelisting_id=pkgltg_id,
+            acl='approveacls',
+            status='Approved',
+        )
+        self.session.add(packager)
+        self.session.commit()
+
+        user = FakeFasUser()
+        data = {
+            'pkgnames': 'guake',
+            'branches': ['epel7'],
+        }
+        # Collection does not support retiring a package
+        with user_set(pkgdb2.APP, user):
+            output = self.app.post('/api/package/retire/', data=data)
+            self.assertEqual(output.status_code, 500)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                    "error": "You are not allowed to retire the package: "
+                    "rpms/guake on branch epel7.",
+                    "output": "notok"
                 }
             )
 
@@ -980,7 +1075,7 @@ class FlaskApiPackagesTest(Modeltests):
                 data,
                 {
                     "error": "You are not allowed to update the status of "
-                             "the package: guake on branch f18 to "
+                             "the package: rpms/guake on branch f18 to "
                              "Approved.",
                     "output": "notok"
                 }
@@ -1013,7 +1108,7 @@ class FlaskApiPackagesTest(Modeltests):
         self.assertEqual(
             data,
             {
-                "error": "Package: guake not found",
+                "error": "Package: rpms/guake not found",
                 "output": "notok"
             }
         )
@@ -1128,6 +1223,8 @@ class FlaskApiPackagesTest(Modeltests):
         self.assertEqual(output.status_code, 200)
         data = json.loads(output.data)
         self.assertEqual(len(data['packages']), 2)
+        self.assertEqual(data['packages'][0]['acls'], [])
+        self.assertEqual(data['packages'][1]['acls'], [])
 
         output = self.app.get('/api/packages/g*/?count=True')
         self.assertEqual(output.status_code, 200)
@@ -1140,6 +1237,37 @@ class FlaskApiPackagesTest(Modeltests):
                 "page": 1,
                 "page_total": 1,
             }
+        )
+
+        # Check that we do return the ACLs when we ask them
+        output = self.app.get('/api/packages/g*/?acls=True')
+        self.assertEqual(output.status_code, 200)
+        data = json.loads(output.data)
+        self.assertEqual(
+            sorted(data.keys()),
+            ['output', 'packages', 'page', 'page_total'])
+        self.assertEqual(len(data['packages']), 2)
+        self.assertEqual(data['output'], 'ok')
+        self.assertEqual(
+            data['packages'][0]['name'], 'geany')
+        self.assertEqual(
+            data['packages'][1]['name'], 'guake')
+        self.assertNotEqual(data['packages'][0]['acls'], [])
+        self.assertNotEqual(data['packages'][1]['acls'], [])
+        self.assertEqual(
+            data['packages'][0]['acls'][0]['collection']['branchname'],
+            'f18'
+        )
+        self.assertEqual(
+            data['packages'][1]['acls'][1]['collection']['branchname'],
+            'master'
+        )
+        self.assertEqual(
+            data['packages'][1]['acls'][0].keys(),
+            [
+                'status', 'point_of_contact', 'collection', 'acls',
+                'critpath', 'status_change',
+            ]
         )
 
         output = self.app.get('/api/packages/g*/?limit=abc')
@@ -1272,6 +1400,7 @@ class FlaskApiPackagesTest(Modeltests):
             )
 
         data = {
+            'namespace': 'rpms',
             'pkgname': 'gnome-terminal',
             'summary': 'Terminal emulator for GNOME',
             'description': 'Terminal for GNOME...',
@@ -1304,6 +1433,7 @@ class FlaskApiPackagesTest(Modeltests):
         )
 
         data = {
+            'namespace': 'rpms',
             'pkgname': 'guake',
             'upstream_url': 'http://www.guake.org',
         }
@@ -1375,6 +1505,7 @@ class FlaskApiPackagesTest(Modeltests):
             )
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'gnome-terminal',
             'branches': 'master'
         }
@@ -1385,7 +1516,8 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertEqual(
                 data,
                 {
-                    "error": "No package found by this name",
+                    "error": "No package found by this name: "
+                    "rpms/gnome-terminal",
                     "output": "notok"
                 }
             )
@@ -1402,6 +1534,7 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertFalse(pkg['critpath'])
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['master', 'f18'],
         }
@@ -1422,6 +1555,7 @@ class FlaskApiPackagesTest(Modeltests):
 
             # Still no update
             data = {
+                'namespace': 'rpms',
                 'pkgnames': 'guake',
                 'branches': ['master', 'f18'],
                 'critpath': False,
@@ -1439,6 +1573,7 @@ class FlaskApiPackagesTest(Modeltests):
             )
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['foobar'],
         }
@@ -1458,6 +1593,7 @@ class FlaskApiPackagesTest(Modeltests):
             )
 
         data = {
+            'namespace': 'rpms',
             'pkgnames': 'guake',
             'branches': ['master', 'f18'],
             'critpath': True,
@@ -1473,19 +1609,18 @@ class FlaskApiPackagesTest(Modeltests):
                 data,
                 {
                     'messages': [
-                        'guake: critpath updated on master to True',
-                        'guake: critpath updated on f18 to True'
+                        'rpms/guake: critpath updated on master to True',
+                        'rpms/guake: critpath updated on f18 to True'
                     ],
                     'output': 'ok'
                 }
             )
 
         # After edit:
-        output = self.app.get('/api/package/guake/', data=data)
+        output = self.app.get('/api/package/rpms/guake/', data=data)
         self.assertEqual(output.status_code, 200)
         data = json.loads(output.data)
         for pkg in data['packages']:
-            self.assertTrue(pkg['critpath'])
             self.assertTrue(pkg['critpath'])
 
     @patch('pkgdb2.lib.utils')
@@ -1498,7 +1633,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # No package
         with user_set(pkgdb2.APP, user):
-            output = self.app.post('/api/package/guake/monitor/1')
+            output = self.app.post('/api/package/rpms/guake/monitor/1')
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1517,7 +1652,7 @@ class FlaskApiPackagesTest(Modeltests):
         # User is not a packager
         user.username = 'Toshio'
         with user_set(pkgdb2.APP, user):
-            output = self.app.post('/api/package/guake/monitor/1')
+            output = self.app.post('/api/package/rpms/guake/monitor/1')
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1536,12 +1671,12 @@ class FlaskApiPackagesTest(Modeltests):
         user.username = 'pingou'
         with user_set(pkgdb2.APP, user):
             # Ensure that GETs show that it is *not* monitored
-            output = self.app.get('/api/package/guake/')
+            output = self.app.get('/api/package/rpms/guake/')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(data['packages'][0]['package']['monitor'], False)
 
-            output = self.app.post('/api/package/guake/monitor/1')
+            output = self.app.post('/api/package/rpms/guake/monitor/1')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1549,12 +1684,13 @@ class FlaskApiPackagesTest(Modeltests):
                 ['messages', 'output']
             )
             self.assertEqual(
-                data['messages'], "Monitoring status of guake set to True")
+                data['messages'],
+                "Monitoring status of rpms/guake set to True")
 
             self.assertEqual(
                 data['output'], "ok")
 
-            output = self.app.post('/api/package/guake/monitor/1')
+            output = self.app.post('/api/package/rpms/guake/monitor/1')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1568,7 +1704,7 @@ class FlaskApiPackagesTest(Modeltests):
                 data['output'], "ok")
 
             # Ensure that subsequent GETs show that it is monitored
-            output = self.app.get('/api/package/guake/')
+            output = self.app.get('/api/package/rpms/guake/')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(data['packages'][0]['package']['monitor'], True)
@@ -1577,7 +1713,7 @@ class FlaskApiPackagesTest(Modeltests):
         user = FakeFasUserAdmin()
         user.username = 'Toshio'
         with user_set(pkgdb2.APP, user):
-            output = self.app.post('/api/package/guake/monitor/False')
+            output = self.app.post('/api/package/rpms/guake/monitor/False')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1585,7 +1721,8 @@ class FlaskApiPackagesTest(Modeltests):
                 ['messages', 'output']
             )
             self.assertEqual(
-                data['messages'], "Monitoring status of guake set to False")
+                data['messages'],
+                "Monitoring status of rpms/guake set to False")
 
             self.assertEqual(
                 data['output'], "ok")
@@ -1600,7 +1737,7 @@ class FlaskApiPackagesTest(Modeltests):
 
         # No package
         with user_set(pkgdb2.APP, user):
-            output = self.app.post('/api/package/guake/koschei/1')
+            output = self.app.post('/api/package/rpms/guake/koschei/1')
             self.assertEqual(output.status_code, 500)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1621,7 +1758,7 @@ class FlaskApiPackagesTest(Modeltests):
         user.groups = ['sysadmin']
         with user_set(pkgdb2.APP, user):
             output = self.app.post(
-                '/api/package/guake/koschei/1', follow_redirects=True)
+                '/api/package/rpms/guake/koschei/1', follow_redirects=True)
             self.assertEqual(output.status_code, 200)
             self.assertIn(
                 '<li class="errors">You must be a packager</li>', output.data)
@@ -1637,7 +1774,7 @@ class FlaskApiPackagesTest(Modeltests):
             self.assertEqual(
                 data['packages'][0]['package']['koschei_monitor'], False)
 
-            output = self.app.post('/api/package/guake/koschei/1')
+            output = self.app.post('/api/package/rpms/guake/koschei/1')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1645,12 +1782,13 @@ class FlaskApiPackagesTest(Modeltests):
                 ['messages', 'output']
             )
             self.assertEqual(
-                data['messages'], "Koschei monitoring status of guake set to True")
+                data['messages'],
+                "Koschei monitoring status of rpms/guake set to True")
 
             self.assertEqual(
                 data['output'], "ok")
 
-            output = self.app.post('/api/package/guake/koschei/1')
+            output = self.app.post('/api/package/rpms/guake/koschei/1')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1664,7 +1802,7 @@ class FlaskApiPackagesTest(Modeltests):
                 data['output'], "ok")
 
             # Ensure that subsequent GETs show that it is monitored
-            output = self.app.get('/api/package/guake/')
+            output = self.app.get('/api/package/rpms/guake/')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1674,7 +1812,7 @@ class FlaskApiPackagesTest(Modeltests):
         user = FakeFasUserAdmin()
         user.username = 'Toshio'
         with user_set(pkgdb2.APP, user):
-            output = self.app.post('/api/package/guake/koschei/False')
+            output = self.app.post('/api/package/rpms/guake/koschei/False')
             self.assertEqual(output.status_code, 200)
             data = json.loads(output.data)
             self.assertEqual(
@@ -1682,10 +1820,274 @@ class FlaskApiPackagesTest(Modeltests):
                 ['messages', 'output']
             )
             self.assertEqual(
-                data['messages'], "Koschei monitoring status of guake set to False")
+                data['messages'],
+                "Koschei monitoring status of rpms/guake set to False")
 
             self.assertEqual(
                 data['output'], "ok")
+
+    @patch('pkgdb2.lib.utils')
+    def test_api_package_request(self, utils_mock):
+        """ Test the api_package_request function.  """
+        # Ensure there are no actions before
+        actions = pkgdblib.search_actions(self.session)
+        self.assertEqual(len(actions), 0)
+
+        create_collection(self.session)
+        user = FakeFasUser()
+
+        with user_set(pkgdb2.APP, user):
+            # Incomplete request
+            data = {
+                'pkgname': 'guake',
+                'summary': 'Drop-down terminal for GNOME',
+                'branches': ['foobar'],
+            }
+            output = self.app.post('/api/request/package', data=data)
+            self.assertEqual(output.status_code, 400)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  "error": "Invalid input submitted",
+                  "error_detail": [
+                    "branches: 'foobar' is not a valid choice for this field",
+                    "review_url: This field is required."
+                  ],
+                  "output": "notok"
+                }
+            )
+
+            # User not a packager
+            data = {
+                'pkgname': 'guake',
+                'summary': 'Drop-down terminal for GNOME',
+                'review_url': 'https://bugzilla.redhat.com/450189',
+                'branches': ['master', 'f18'],
+                'namespace': 'rpms',
+            }
+            output = self.app.post('/api/request/package', data=data)
+            self.assertEqual(output.status_code, 400)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  'error': 'User "pingou" is not in the packager group',
+                  'output': 'notok'
+                }
+            )
+
+            # Working - Asking for 1 branch only but getting `master` as well
+            utils_mock.get_packagers.return_value = ['pingou', 'ralph']
+            utils_mock.log.return_value = \
+                'user: pingou request package: guake on branch <branch>'
+            data = {
+                'pkgname': 'guake',
+                'summary': 'Drop-down terminal for GNOME',
+                'review_url': 'https://bugzilla.redhat.com/450189',
+                'branches': ['f18'],
+                'namespace': 'rpms',
+            }
+            output = self.app.post('/api/request/package', data=data)
+            self.assertEqual(output.status_code, 200)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  'messages': [
+                    'user: pingou request package: guake on branch <branch>',
+                    'user: pingou request package: guake on branch <branch>',
+                  ],
+                  'output': 'ok'
+                }
+            )
+
+        actions = pkgdblib.search_actions(self.session)
+        self.assertEqual(len(actions), 2)
+        self.assertEqual(actions[0].action, 'request.package')
+        self.assertEqual(actions[1].action, 'request.package')
+        self.assertEqual(actions[0].collection.branchname, 'f18')
+        self.assertEqual(actions[1].collection.branchname, 'master')
+        self.assertEqual(actions[0].package, None)
+        self.assertEqual(actions[1].package, None)
+        self.assertEqual(actions[0].info_data['pkg_name'], 'guake')
+        self.assertEqual(actions[1].info_data['pkg_name'], 'guake')
+
+        # Check with providing a bug number instead of the full URL
+        with user_set(pkgdb2.APP, user):
+            utils_mock.log.return_value = \
+                'user: pingou request package: terminator on branch master'
+            data = {
+                'pkgname': 'terminator',
+                'summary': 'Terminal for GNOME',
+                'review_url': '123',
+                'branches': ['master'],
+                'namespace': 'rpms',
+            }
+            output = self.app.post('/api/request/package', data=data)
+            self.assertEqual(output.status_code, 200)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  'messages': [
+                    'user: pingou request package: terminator on branch master',
+                  ],
+                  'output': 'ok'
+                }
+            )
+
+        actions = pkgdblib.search_actions(self.session)
+        self.assertEqual(len(actions), 3)
+        action = pkgdblib.get_admin_action(self.session, 3)
+        self.assertEqual(action.action, 'request.package')
+        self.assertEqual(action.collection.branchname, 'master')
+        self.assertEqual(action.package, None)
+        self.assertEqual(action.info_data['pkg_name'], 'terminator')
+        self.assertEqual(
+            action.info_data['pkg_review_url'],
+            'https://bugzilla.redhat.com/123'
+        )
+
+        # Check with an URL not matching expectations
+        with user_set(pkgdb2.APP, user):
+            utils_mock.log.return_value = \
+                'user: pingou request package: foo on branch master'
+            data = {
+                'pkgname': 'foo',
+                'summary': 'bar',
+                'review_url': 'http://bz.rh.c/123',
+                'branches': ['master'],
+                'namespace': 'rpms',
+            }
+            output = self.app.post('/api/request/package', data=data)
+            self.assertEqual(output.status_code, 200)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  'messages': [
+                    'user: pingou request package: foo on branch master',
+                  ],
+                  'output': 'ok'
+                }
+            )
+
+        actions = pkgdblib.search_actions(self.session)
+        self.assertEqual(len(actions), 4)
+        action = pkgdblib.get_admin_action(self.session, 4)
+        self.assertEqual(action.action, 'request.package')
+        self.assertEqual(action.collection.branchname, 'master')
+        self.assertEqual(action.package, None)
+        self.assertEqual(action.info_data['pkg_name'], 'foo')
+        self.assertEqual(
+            action.info_data['pkg_review_url'], 'http://bz.rh.c/123')
+
+    @patch('pkgdb2.lib.utils')
+    def test_api_branch_request(self, utils_mock):
+        """ Test the api_branch_request function.  """
+        # Ensure there are no actions before
+        actions = pkgdblib.search_actions(self.session)
+        self.assertEqual(len(actions), 0)
+
+        create_package_acl(self.session)
+        user = FakeFasUser()
+
+        with user_set(pkgdb2.APP, user):
+            # Invalid package
+            data = {
+                'branches': ['foobar'],
+            }
+            output = self.app.post('/api/request/branch/rpms/foo', data=data)
+            self.assertEqual(output.status_code, 404)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  "error": "No package found: rpms/foo",
+                  "output": "notok"
+                }
+            )
+
+            # Invalid request
+            data = {
+                'branches': ['foobar'],
+            }
+            output = self.app.post('/api/request/branch/rpms/guake', data=data)
+            self.assertEqual(output.status_code, 400)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  "error": "Invalid input submitted",
+                  "error_detail": [
+                    "branches: 'foobar' is not a valid choice for this field"
+                  ],
+                  "output": "notok"
+                }
+            )
+
+            # User not a packager
+            data = {
+                'branches': ['f17'],
+            }
+            output = self.app.post('/api/request/branch/rpms/guake', data=data)
+            self.assertEqual(output.status_code, 400)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  'error': 'User "pingou" is not in the packager group',
+                  'output': 'notok'
+                }
+            )
+
+            # Working - Fedora branches are directly created
+            utils_mock.get_packagers.return_value = ['pingou', 'ralph']
+            utils_mock.log.return_value = \
+                'user: pingou request package: guake on branch <branch>'
+            data = {
+                'branches': ['f17'],
+            }
+            output = self.app.post('/api/request/branch/rpms/guake', data=data)
+            self.assertEqual(output.status_code, 200)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  'messages': [
+                    'Branch f17 created for user pingou',
+                  ],
+                  'output': 'ok'
+                }
+            )
+
+            actions = pkgdblib.search_actions(self.session)
+            self.assertEqual(len(actions), 0)
+
+            # Working - EPEL branches go through validation
+            data = {
+                'branches': ['el6'],
+            }
+            output = self.app.post('/api/request/branch/rpms/guake', data=data)
+            self.assertEqual(output.status_code, 200)
+            data = json.loads(output.data)
+            self.assertEqual(
+                data,
+                {
+                  "messages": [
+                    "Branch el6 requested for user pingou"
+                  ],
+                  "output": "ok"
+                }
+            )
+
+            actions = pkgdblib.search_actions(self.session)
+            self.assertEqual(len(actions), 1)
+            self.assertEqual(actions[0].action, 'request.branch')
+            self.assertEqual(actions[0].collection.branchname, 'el6')
+            self.assertEqual(actions[0].package.name, 'guake')
+            self.assertEqual(actions[0].info_data, {})
 
 
 if __name__ == '__main__':
